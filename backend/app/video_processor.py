@@ -60,19 +60,15 @@ def process_video(video_id: int, input_path: str, output_path: str) -> None:
     db.commit()
 
     frame_id = 0
-    # Run inference every N frames — 8 = good balance of speed vs coverage at 30fps
     inference_every = 8
-    # Update MJPEG preview every N frames
-    preview_every = 4
+    preview_every = 2          # encode preview every 2 frames for smooth display
     pending_detections: list[Detection] = []
-    last_detections: list = []  # carry forward last known boxes for preview overlay
+    last_detections: list = []
 
-    # --- Tracking state (person counting) ---
-    # track_id → how many inference frames this ID has been seen
+    # --- Tracking state ---
     track_history: dict[int, int] = {}
-    # track IDs confirmed stable (seen >= STABILITY_THRESHOLD frames)
     confirmed_ids: set[int] = set()
-    STABILITY_THRESHOLD = 5  # must appear in 5 inference frames before counting
+    STABILITY_THRESHOLD = 5
 
     try:
         while True:
@@ -82,11 +78,16 @@ def process_video(video_id: int, input_path: str, output_path: str) -> None:
 
             timestamp = frame_id / fps
             is_inference_frame = (frame_id % inference_every == 0)
+
+            # Push the very first raw frame immediately so stream shows something right away
+            if frame_id == 0:
+                ok_jpg, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                if ok_jpg:
+                    preview_store.set_frame(video_id, buffer.tobytes())
+
             if is_inference_frame:
-                # Use track() so YOLOv8 assigns persistent IDs across frames
                 last_detections = detector.track(frame)
 
-                # --- Update tracking state for person counting ---
                 for det in last_detections:
                     if detector.get_object_name(det.class_id).lower() != "person":
                         continue
@@ -101,21 +102,14 @@ def process_video(video_id: int, input_path: str, output_path: str) -> None:
                 x1, y1, x2, y2 = detection.bbox
                 object_name = detector.get_object_name(detection.class_id)
                 label = f"{object_name} {detection.confidence:.2f}"
-                # Show track ID on person boxes
                 if detection.track_id is not None and object_name.lower() == "person":
                     label = f"Person#{detection.track_id} {detection.confidence:.2f}"
                 cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (10, 220, 90), 2)
                 cv2.putText(
-                    frame,
-                    label,
+                    frame, label,
                     (int(x1), max(20, int(y1) - 8)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (10, 220, 90),
-                    2,
-                    cv2.LINE_AA,
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (10, 220, 90), 2, cv2.LINE_AA,
                 )
-                # Only write to DB on inference frames — not on every carried-forward frame
                 if is_inference_frame:
                     pending_detections.append(
                         Detection(
@@ -124,21 +118,19 @@ def process_video(video_id: int, input_path: str, output_path: str) -> None:
                             timestamp=float(timestamp),
                             object_name=object_name,
                             confidence=float(detection.confidence),
-                            x1=float(x1),
-                            y1=float(y1),
-                            x2=float(x2),
-                            y2=float(y2),
+                            x1=float(x1), y1=float(y1),
+                            x2=float(x2), y2=float(y2),
                             track_id=detection.track_id,
                         )
                     )
 
-            writer.write(frame)
-
-            # Only encode JPEG for preview on select frames
-            if frame_id % preview_every == 0:
-                ok_jpg, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            # Encode preview BEFORE writing to file — stream gets frames faster
+            if frame_id > 0 and frame_id % preview_every == 0:
+                ok_jpg, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 65])
                 if ok_jpg:
                     preview_store.set_frame(video_id, buffer.tobytes())
+
+            writer.write(frame)
             # Batch-insert detections every 30 frames
             if frame_id % 30 == 0 and pending_detections:
                 db.add_all(pending_detections)

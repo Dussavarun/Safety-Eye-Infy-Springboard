@@ -1,4 +1,5 @@
-.env
+# .env is committed intentionally — contains non-secret defaults for local dev
+# Do NOT add real secrets here; override via environment variables in production
 __pycache__/
 *.pyc
 .pytest_cache/

@@ -4,9 +4,9 @@ services:
     container_name: od_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is not set — copy .env.example to .env and fill in values}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set — copy .env.example to .env and fill in values}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is not set — copy .env.example to .env and fill in values}
     ports:
       - "5432:5432"
     volumes:
@@ -20,7 +20,8 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: od_backend
     restart: unless-stopped
     env_file:
@@ -31,7 +32,6 @@ services:
       - ./backend:/app
       - ./data:/data
       - ./models/weights:/app/models/weights:ro
-      - ./models:/models:ro
     ports:
       - "8000:8000"
     depends_on:

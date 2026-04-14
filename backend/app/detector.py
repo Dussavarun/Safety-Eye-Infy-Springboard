@@ -46,6 +46,10 @@ class ObjectDetector:
             self.model = YOLO(settings.model_path)
             model_names = getattr(self.model, "names", {}) or {}
             self._merge_names_dict(model_names)
+            # Warm up the model with a dummy frame so the first real inference is instant
+            import numpy as _np
+            _dummy = _np.zeros((self.input_size, self.input_size, 3), dtype=_np.uint8)
+            self.model.predict(source=_dummy, imgsz=self.input_size, device="cpu", verbose=False)
         else:
             raise ValueError("MODEL_TYPE must be 'onnx' or 'ultralytics'")
 
