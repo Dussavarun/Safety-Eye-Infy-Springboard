@@ -1,4 +1,4 @@
-# Model-Agnostic Full-Stack Video Detection Platform
+# Safety-Eye Video Detection Platform
 
 This project is a complete Dockerized stack for video object detection:
 
@@ -78,14 +78,6 @@ Defined in `sql/init.sql`:
 
 `object_name` is `TEXT` and is not tied to fixed class columns.
 
-## Model-Agnostic Class Mapping
-
-The detector resolves labels dynamically from:
-
-1. `backend/model_data/classes.yaml` (`names` mapping), and/or
-2. model metadata (`names`) when present.
-
-Unknown class IDs are stored as `class_<id>`.
 
 ## Grafana Dashboard (Dynamic)
 
