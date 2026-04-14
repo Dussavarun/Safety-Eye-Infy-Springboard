@@ -1,0 +1,340 @@
+{
+  "__inputs": [{"name":"DS_POSTGRESQL","label":"PostgreSQL — Safety Eye","description":"Safety Eye PostgreSQL database","type":"datasource","pluginId":"postgres","pluginName":"PostgreSQL"}],
+  "__elements": {},
+  "__requires": [
+    {"type":"grafana","id":"grafana","name":"Grafana","version":"10.0.0"},
+    {"type":"datasource","id":"postgres","name":"PostgreSQL","version":"1.0.0"},
+    {"type":"panel","id":"stat","name":"Stat","version":""},
+    {"type":"panel","id":"gauge","name":"Gauge","version":""},
+    {"type":"panel","id":"timeseries","name":"Time series","version":""},
+    {"type":"panel","id":"barchart","name":"Bar chart","version":""},
+    {"type":"panel","id":"piechart","name":"Pie chart","version":""},
+    {"type":"panel","id":"table","name":"Table","version":""}
+  ],
+  "annotations": {"list":[{"builtIn":1,"datasource":{"type":"grafana","uid":"-- Grafana --"},"enable":true,"hide":true,"iconColor":"rgba(0,211,255,1)","name":"Annotations & Alerts","type":"dashboard"}]},
+  "description": "Professional PPE compliance monitoring — Safety Eye powered by YOLOv8",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+
+    {"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":0},"id":1,"title":"Executive Overview","type":"row"},
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Weighted compliance score across all processed frames",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"min":0,"max":100,"unit":"percent","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":50},{"color":"green","value":80}]}},"overrides":[]},
+      "gridPos":{"h":4,"w":4,"x":0,"y":1},"id":2,
+      "options":{"colorMode":"background","graphMode":"area","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["mean"],"fields":"","values":false},"textMode":"auto"},
+      "title":"Overall Safety Score","type":"stat",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COALESCE(ROUND(CAST(AVG(compliance_rate) AS numeric),1),0) AS value FROM detection_sessions WHERE $__timeFilter(captured_at) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer))","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Average time between consecutive violations (minutes) — higher is better",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"unit":"m","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":5},{"color":"green","value":30}]}},"overrides":[]},
+      "gridPos":{"h":4,"w":4,"x":4,"y":1},"id":3,
+      "options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},
+      "title":"Mean Time Between Violations","type":"stat",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COALESCE(ROUND(CAST(EXTRACT(EPOCH FROM (MAX(frame_timestamp) - MIN(frame_timestamp))) / NULLIF(COUNT(*)-1,0) / 60 AS numeric),1),0) AS value FROM violations WHERE $__timeFilter(frame_timestamp) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer))","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Minutes elapsed since the most recent violation was detected",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"unit":"m","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":10},{"color":"green","value":60}]}},"overrides":[]},
+      "gridPos":{"h":4,"w":4,"x":8,"y":1},"id":4,
+      "options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},
+      "title":"Time Since Last Violation","type":"stat",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COALESCE(ROUND(CAST(EXTRACT(EPOCH FROM (NOW() - MAX(frame_timestamp)))/60 AS numeric),1),0) AS value FROM violations WHERE (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer))","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Frames where 2 or more simultaneous violations were detected — highest risk situations",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"unit":"short","thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":1},{"color":"red","value":5}]}},"overrides":[]},
+      "gridPos":{"h":4,"w":4,"x":12,"y":1},"id":5,
+      "options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},
+      "title":"High-Risk Frames (2+ Violations)","type":"stat",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COUNT(*) AS value FROM (SELECT session_id FROM violations WHERE $__timeFilter(frame_timestamp) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer)) GROUP BY session_id HAVING COUNT(*) >= 2) t","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Compliance rate change: last 12h vs previous 12h. Positive = improving, negative = declining",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"unit":"percent","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":1}]}},"overrides":[]},
+      "gridPos":{"h":4,"w":4,"x":16,"y":1},"id":6,
+      "options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},
+      "title":"Compliance Trend (vs prev 12h)","type":"stat",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COALESCE(ROUND(CAST((SELECT AVG(compliance_rate) FROM detection_sessions WHERE captured_at >= NOW()-INTERVAL '12 hours' AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer))) - (SELECT AVG(compliance_rate) FROM detection_sessions WHERE captured_at >= NOW()-INTERVAL '24 hours' AND captured_at < NOW()-INTERVAL '12 hours' AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer))) AS numeric),1),0) AS value","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Zone with the highest number of violations in the selected time range",
+      "fieldConfig":{"defaults":{"color":{"mode":"fixed","fixedColor":"red"},"mappings":[],"unit":"string","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null}]}},"overrides":[]},
+      "gridPos":{"h":4,"w":4,"x":20,"y":1},"id":7,
+      "options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["last"],"fields":"","values":false},"textMode":"value"},
+      "title":"Worst Zone","type":"stat",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COALESCE(vs.location, vs.name) AS value FROM violations v JOIN video_sources vs ON vs.id = v.video_source_id WHERE $__timeFilter(v.frame_timestamp) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR v.video_source_id = CAST(NULLIF('${video_source}','All') AS integer)) GROUP BY COALESCE(vs.location,vs.name) ORDER BY COUNT(*) DESC LIMIT 1","refId":"A"}]
+    },
+
+    {"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":5},"id":8,"title":"Per-PPE Item Compliance","type":"row"},
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"% of helmet detections vs total helmet-related detections",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"min":0,"max":100,"unit":"percent","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":50},{"color":"green","value":80}]}},"overrides":[]},
+      "gridPos":{"h":5,"w":4,"x":0,"y":6},"id":9,
+      "options":{"minVizHeight":75,"minVizWidth":75,"orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"showThresholdLabels":false,"showThresholdMarkers":true,"text":{}},
+      "title":"Helmet Compliance","type":"gauge",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COALESCE(ROUND(CAST(100.0 * SUM(CASE WHEN d.class_name='helmet' THEN 1 ELSE 0 END) / NULLIF(SUM(CASE WHEN d.class_name IN ('helmet','no_helmet') THEN 1 ELSE 0 END),0) AS numeric),1),0) AS value FROM detections d JOIN detection_sessions ds ON ds.id=d.session_id WHERE $__timeFilter(ds.captured_at) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR ds.video_source_id = CAST(NULLIF('${video_source}','All') AS integer))","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Vest coverage: vest detections vs (vest + no-PPE detections). Proxy since no explicit no_vest class.",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"min":0,"max":100,"unit":"percent","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":50},{"color":"green","value":80}]}},"overrides":[]},
+      "gridPos":{"h":5,"w":4,"x":4,"y":6},"id":10,
+      "options":{"minVizHeight":75,"minVizWidth":75,"orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"showThresholdLabels":false,"showThresholdMarkers":true,"text":{}},
+      "title":"Vest Coverage","type":"gauge",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COALESCE(ROUND(CAST(100.0 * SUM(CASE WHEN d.class_name='vest' THEN 1 ELSE 0 END) / NULLIF(SUM(CASE WHEN d.class_name IN ('vest','none') THEN 1 ELSE 0 END),0) AS numeric),1),0) AS value FROM detections d JOIN detection_sessions ds ON ds.id=d.session_id WHERE $__timeFilter(ds.captured_at) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR ds.video_source_id = CAST(NULLIF('${video_source}','All') AS integer))","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"% of glove detections vs total glove-related detections",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"min":0,"max":100,"unit":"percent","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":50},{"color":"green","value":80}]}},"overrides":[]},
+      "gridPos":{"h":5,"w":4,"x":8,"y":6},"id":11,
+      "options":{"minVizHeight":75,"minVizWidth":75,"orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"showThresholdLabels":false,"showThresholdMarkers":true,"text":{}},
+      "title":"Gloves Compliance","type":"gauge",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COALESCE(ROUND(CAST(100.0 * SUM(CASE WHEN d.class_name='gloves' THEN 1 ELSE 0 END) / NULLIF(SUM(CASE WHEN d.class_name IN ('gloves','no_gloves') THEN 1 ELSE 0 END),0) AS numeric),1),0) AS value FROM detections d JOIN detection_sessions ds ON ds.id=d.session_id WHERE $__timeFilter(ds.captured_at) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR ds.video_source_id = CAST(NULLIF('${video_source}','All') AS integer))","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"% of boot detections vs total boot-related detections",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"min":0,"max":100,"unit":"percent","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":50},{"color":"green","value":80}]}},"overrides":[]},
+      "gridPos":{"h":5,"w":4,"x":12,"y":6},"id":12,
+      "options":{"minVizHeight":75,"minVizWidth":75,"orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"showThresholdLabels":false,"showThresholdMarkers":true,"text":{}},
+      "title":"Boots Compliance","type":"gauge",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COALESCE(ROUND(CAST(100.0 * SUM(CASE WHEN d.class_name='boots' THEN 1 ELSE 0 END) / NULLIF(SUM(CASE WHEN d.class_name IN ('boots','no_boots') THEN 1 ELSE 0 END),0) AS numeric),1),0) AS value FROM detections d JOIN detection_sessions ds ON ds.id=d.session_id WHERE $__timeFilter(ds.captured_at) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR ds.video_source_id = CAST(NULLIF('${video_source}','All') AS integer))","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"% of goggle detections vs total goggle-related detections",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"min":0,"max":100,"unit":"percent","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":50},{"color":"green","value":80}]}},"overrides":[]},
+      "gridPos":{"h":5,"w":4,"x":16,"y":6},"id":13,
+      "options":{"minVizHeight":75,"minVizWidth":75,"orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"showThresholdLabels":false,"showThresholdMarkers":true,"text":{}},
+      "title":"Goggles Compliance","type":"gauge",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COALESCE(ROUND(CAST(100.0 * SUM(CASE WHEN d.class_name='goggles' THEN 1 ELSE 0 END) / NULLIF(SUM(CASE WHEN d.class_name IN ('goggles','no_goggle') THEN 1 ELSE 0 END),0) AS numeric),1),0) AS value FROM detections d JOIN detection_sessions ds ON ds.id=d.session_id WHERE $__timeFilter(ds.captured_at) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR ds.video_source_id = CAST(NULLIF('${video_source}','All') AS integer))","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"% of detections where person has absolutely NO safety gear (class: none) — most critical violation",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"min":0,"max":100,"unit":"percent","thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":5},{"color":"red","value":15}]}},"overrides":[]},
+      "gridPos":{"h":5,"w":4,"x":20,"y":6},"id":14,
+      "options":{"minVizHeight":75,"minVizWidth":75,"orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"showThresholdLabels":false,"showThresholdMarkers":true,"text":{}},
+      "title":"No PPE At All (Critical)","type":"gauge",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COALESCE(ROUND(CAST(100.0 * SUM(CASE WHEN d.class_name='none' THEN 1 ELSE 0 END) / NULLIF(COUNT(*),0) AS numeric),1),0) AS value FROM detections d JOIN detection_sessions ds ON ds.id=d.session_id WHERE $__timeFilter(ds.captured_at) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR ds.video_source_id = CAST(NULLIF('${video_source}','All') AS integer))","refId":"A"}]
+    },
+
+    {"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":11},"id":15,"title":"Key Metrics","type":"row"},
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Average compliance rate across all frames in selected time range",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"min":0,"max":100,"unit":"percent","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":50},{"color":"green","value":80}]}},"overrides":[]},
+      "gridPos":{"h":4,"w":6,"x":0,"y":12},"id":16,
+      "options":{"colorMode":"background","graphMode":"area","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["mean"],"fields":"","values":false},"textMode":"auto"},
+      "title":"Avg Compliance Rate","type":"stat",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT ROUND(CAST(AVG(compliance_rate) AS numeric),2) AS value FROM detection_sessions WHERE $__timeFilter(captured_at) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer))","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Total violations in selected time range",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"unit":"short","thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":1},{"color":"red","value":10}]}},"overrides":[]},
+      "gridPos":{"h":4,"w":6,"x":6,"y":12},"id":17,
+      "options":{"colorMode":"background","graphMode":"area","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},
+      "title":"Total Violations","type":"stat",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COUNT(*) AS value FROM violations WHERE $__timeFilter(frame_timestamp) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer))","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Violations pending review",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"mappings":[],"unit":"short","thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":1},{"color":"red","value":5}]}},"overrides":[]},
+      "gridPos":{"h":4,"w":6,"x":12,"y":12},"id":18,
+      "options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},
+      "title":"Unacknowledged Violations","type":"stat",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COUNT(*) AS value FROM violations WHERE acknowledged=false AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer))","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Total person detections across all frames",
+      "fieldConfig":{"defaults":{"color":{"mode":"fixed","fixedColor":"blue"},"mappings":[],"unit":"short","thresholds":{"mode":"absolute","steps":[{"color":"blue","value":null}]}},"overrides":[]},
+      "gridPos":{"h":4,"w":6,"x":18,"y":12},"id":19,
+      "options":{"colorMode":"background","graphMode":"area","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["sum"],"fields":"","values":false},"textMode":"auto"},
+      "title":"Total Persons Detected","type":"stat",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COALESCE(SUM(person_count),0) AS value FROM detection_sessions WHERE $__timeFilter(captured_at) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer))","refId":"A"}]
+    },
+
+    {"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":16},"id":20,"title":"Trends Over Time","type":"row"},
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Compliance rate per frame with threshold bands at 50% and 80%",
+      "fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"axisColorMode":"text","axisLabel":"Compliance %","axisPlacement":"auto","barAlignment":0,"drawStyle":"line","fillOpacity":15,"gradientMode":"opacity","hideFrom":{"legend":false,"tooltip":false,"viz":false},"insertNulls":false,"lineInterpolation":"smooth","lineWidth":2,"pointSize":5,"scaleDistribution":{"type":"linear"},"showPoints":"auto","spanNulls":false,"stacking":{"group":"A","mode":"none"},"thresholdsStyle":{"mode":"line+area"}},"mappings":[],"max":100,"min":0,"thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":50},{"color":"green","value":80}]},"unit":"percent"},"overrides":[]},
+      "gridPos":{"h":8,"w":12,"x":0,"y":17},"id":21,
+      "options":{"legend":{"calcs":["mean","min","max"],"displayMode":"list","placement":"bottom","showLegend":true},"tooltip":{"mode":"single","sort":"none"}},
+      "title":"Compliance Rate Over Time","type":"timeseries",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"time_series","rawSql":"SELECT captured_at AS time, compliance_rate AS \"Compliance Rate %\" FROM detection_sessions WHERE $__timeFilter(captured_at) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer)) ORDER BY captured_at","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Person occupancy per frame over time — indicates worksite activity level",
+      "fieldConfig":{"defaults":{"color":{"mode":"fixed","fixedColor":"blue"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"axisColorMode":"text","axisLabel":"Persons","axisPlacement":"auto","barAlignment":0,"drawStyle":"bars","fillOpacity":60,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"insertNulls":false,"lineInterpolation":"linear","lineWidth":1,"pointSize":4,"scaleDistribution":{"type":"linear"},"showPoints":"never","spanNulls":false,"stacking":{"group":"A","mode":"none"},"thresholdsStyle":{"mode":"off"}},"mappings":[],"min":0,"thresholds":{"mode":"absolute","steps":[{"color":"blue","value":null}]},"unit":"short"},"overrides":[]},
+      "gridPos":{"h":8,"w":12,"x":12,"y":17},"id":22,
+      "options":{"legend":{"calcs":["mean","max"],"displayMode":"list","placement":"bottom","showLegend":true},"tooltip":{"mode":"single","sort":"none"}},
+      "title":"Person Occupancy Over Time","type":"timeseries",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"time_series","rawSql":"SELECT captured_at AS time, person_count AS \"Persons in Frame\" FROM detection_sessions WHERE $__timeFilter(captured_at) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer)) ORDER BY captured_at","refId":"A"}]
+    },
+
+    {"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":25},"id":23,"title":"Temporal Patterns","type":"row"},
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Violations grouped by hour of day — identify peak non-compliance windows",
+      "fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"axisColorMode":"text","axisLabel":"Hour (0–23)","axisPlacement":"auto","fillOpacity":80,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1,"scaleDistribution":{"type":"linear"},"thresholdsStyle":{"mode":"off"}},"mappings":[],"unit":"short","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null}]}},"overrides":[]},
+      "gridPos":{"h":8,"w":12,"x":0,"y":26},"id":24,
+      "options":{"barRadius":0.05,"barWidth":0.7,"fullHighlight":false,"groupWidth":0.7,"legend":{"displayMode":"list","placement":"bottom","showLegend":true},"orientation":"auto","showValue":"always","stacking":"none","tooltip":{"mode":"single","sort":"none"},"xTickLabelRotation":0,"xTickLabelSpacing":0},
+      "title":"Violations by Hour of Day","type":"barchart",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT CAST(EXTRACT(HOUR FROM frame_timestamp) AS integer) AS hour_of_day, COUNT(*) AS violations FROM violations WHERE $__timeFilter(frame_timestamp) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer)) GROUP BY CAST(EXTRACT(HOUR FROM frame_timestamp) AS integer) ORDER BY hour_of_day","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Violations aggregated per hour — reveals spikes and trends in safety incidents",
+      "fieldConfig":{"defaults":{"color":{"mode":"fixed","fixedColor":"red"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"axisColorMode":"text","axisLabel":"Violations/hr","axisPlacement":"auto","barAlignment":0,"drawStyle":"bars","fillOpacity":70,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"insertNulls":false,"lineInterpolation":"linear","lineWidth":1,"pointSize":4,"scaleDistribution":{"type":"linear"},"showPoints":"never","spanNulls":false,"stacking":{"group":"A","mode":"none"},"thresholdsStyle":{"mode":"off"}},"mappings":[],"min":0,"unit":"short","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null}]}},"overrides":[]},
+      "gridPos":{"h":8,"w":12,"x":12,"y":26},"id":25,
+      "options":{"legend":{"calcs":["sum","max"],"displayMode":"list","placement":"bottom","showLegend":true},"tooltip":{"mode":"single","sort":"none"}},
+      "title":"Hourly Violation Rate","type":"timeseries",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"time_series","rawSql":"SELECT date_trunc('hour', frame_timestamp) AS time, COUNT(*) AS \"Violations/hr\" FROM violations WHERE $__timeFilter(frame_timestamp) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer)) GROUP BY date_trunc('hour', frame_timestamp) ORDER BY time","refId":"A"}]
+    },
+
+    {"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":34},"id":26,"title":"Violations Analysis","type":"row"},
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Count per violation type — identifies most common PPE gaps",
+      "fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"axisColorMode":"text","axisLabel":"Count","axisPlacement":"auto","fillOpacity":80,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1,"scaleDistribution":{"type":"linear"},"thresholdsStyle":{"mode":"off"}},"mappings":[],"unit":"short","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null}]}},"overrides":[]},
+      "gridPos":{"h":8,"w":8,"x":0,"y":35},"id":27,
+      "options":{"barRadius":0.05,"barWidth":0.7,"fullHighlight":false,"groupWidth":0.7,"legend":{"displayMode":"list","placement":"bottom","showLegend":true},"orientation":"auto","showValue":"always","stacking":"none","tooltip":{"mode":"single","sort":"none"},"xTickLabelRotation":-30,"xTickLabelSpacing":100},
+      "title":"Violations by Type","type":"barchart",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT violation_type, COUNT(*) AS count FROM violations WHERE (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer)) GROUP BY violation_type ORDER BY count DESC","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"High = no PPE at all (class: none), Medium = specific item missing",
+      "fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"hideFrom":{"legend":false,"tooltip":false,"viz":false}},"mappings":[],"unit":"short"},"overrides":[{"matcher":{"id":"byName","options":"high"},"properties":[{"id":"color","value":{"fixedColor":"red","mode":"fixed"}}]},{"matcher":{"id":"byName","options":"medium"},"properties":[{"id":"color","value":{"fixedColor":"orange","mode":"fixed"}}]}]},
+      "gridPos":{"h":8,"w":8,"x":8,"y":35},"id":28,
+      "options":{"displayLabels":["name","percent"],"legend":{"displayMode":"table","placement":"right","showLegend":true,"values":["value","percent"]},"pieType":"donut","tooltip":{"mode":"single","sort":"none"}},
+      "title":"Violations by Severity","type":"piechart",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT severity, COUNT(*) AS count FROM violations WHERE (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer)) GROUP BY severity ORDER BY count DESC","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Violation count per camera/zone location",
+      "fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"axisColorMode":"text","axisLabel":"Violations","axisPlacement":"auto","fillOpacity":80,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1,"scaleDistribution":{"type":"linear"},"thresholdsStyle":{"mode":"off"}},"mappings":[],"unit":"short","thresholds":{"mode":"absolute","steps":[{"color":"orange","value":null}]}},"overrides":[]},
+      "gridPos":{"h":8,"w":8,"x":16,"y":35},"id":29,
+      "options":{"barRadius":0.05,"barWidth":0.7,"fullHighlight":false,"groupWidth":0.7,"legend":{"displayMode":"list","placement":"bottom","showLegend":true},"orientation":"auto","showValue":"always","stacking":"none","tooltip":{"mode":"single","sort":"none"},"xTickLabelRotation":-30,"xTickLabelSpacing":100},
+      "title":"Violations per Zone","type":"barchart",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT COALESCE(vs.location,vs.name) AS location, COUNT(v.id) AS violations FROM violations v JOIN video_sources vs ON vs.id=v.video_source_id WHERE (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR v.video_source_id = CAST(NULLIF('${video_source}','All') AS integer)) GROUP BY COALESCE(vs.location,vs.name) ORDER BY violations DESC","refId":"A"}]
+    },
+
+    {"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":43},"id":30,"title":"Model & Detection Performance","type":"row"},
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Average detection confidence per class — lower confidence may indicate poor lighting or unusual angles",
+      "fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"axisColorMode":"text","axisLabel":"Confidence %","axisPlacement":"auto","fillOpacity":80,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1,"scaleDistribution":{"type":"linear"},"thresholdsStyle":{"mode":"off"}},"mappings":[],"min":0,"max":100,"unit":"percent","thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":50},{"color":"green","value":70}]}},"overrides":[]},
+      "gridPos":{"h":8,"w":12,"x":0,"y":44},"id":31,
+      "options":{"barRadius":0.05,"barWidth":0.7,"fullHighlight":false,"groupWidth":0.7,"legend":{"displayMode":"list","placement":"bottom","showLegend":true},"orientation":"horizontal","showValue":"always","stacking":"none","tooltip":{"mode":"single","sort":"none"},"xTickLabelRotation":0,"xTickLabelSpacing":0},
+      "title":"Avg Confidence per Detection Class","type":"barchart",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT d.class_name, ROUND(CAST(AVG(d.confidence)*100 AS numeric),1) AS avg_confidence FROM detections d JOIN detection_sessions ds ON ds.id=d.session_id WHERE $__timeFilter(ds.captured_at) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR ds.video_source_id = CAST(NULLIF('${video_source}','All') AS integer)) GROUP BY d.class_name ORDER BY avg_confidence DESC","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"YOLO inference time per frame — spikes may indicate resource contention",
+      "fieldConfig":{"defaults":{"color":{"mode":"fixed","fixedColor":"purple"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"axisColorMode":"text","axisLabel":"ms","axisPlacement":"auto","barAlignment":0,"drawStyle":"line","fillOpacity":20,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"insertNulls":false,"lineInterpolation":"smooth","lineWidth":2,"pointSize":4,"scaleDistribution":{"type":"linear"},"showPoints":"auto","spanNulls":false,"stacking":{"group":"A","mode":"none"},"thresholdsStyle":{"mode":"off"}},"mappings":[],"min":0,"unit":"ms","thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]}},"overrides":[]},
+      "gridPos":{"h":8,"w":12,"x":12,"y":44},"id":32,
+      "options":{"legend":{"calcs":["mean","max"],"displayMode":"list","placement":"bottom","showLegend":true},"tooltip":{"mode":"single","sort":"none"}},
+      "title":"Inference Time Over Time","type":"timeseries",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"time_series","rawSql":"SELECT captured_at AS time, inference_time_ms AS \"Inference (ms)\" FROM detection_sessions WHERE $__timeFilter(captured_at) AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR video_source_id = CAST(NULLIF('${video_source}','All') AS integer)) ORDER BY captured_at","refId":"A"}]
+    },
+
+    {"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":52},"id":33,"title":"Live Unresolved Alerts","type":"row"},
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"All unacknowledged violations requiring review — newest first",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"custom":{"align":"auto","cellOptions":{"type":"auto"},"inspect":false},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]}},"overrides":[
+        {"matcher":{"id":"byName","options":"Severity"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background"}},{"id":"mappings","value":[{"type":"value","options":{"high":{"color":"red","index":0,"text":"HIGH"}}},{"type":"value","options":{"medium":{"color":"orange","index":1,"text":"MEDIUM"}}}]}]},
+        {"matcher":{"id":"byName","options":"Violation Type"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-text"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null}]}}]},
+        {"matcher":{"id":"byName","options":"Timestamp"},"properties":[{"id":"unit","value":"dateTimeAsLocal"}]}
+      ]},
+      "gridPos":{"h":10,"w":24,"x":0,"y":53},"id":34,
+      "options":{"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true,"sortBy":[{"desc":true,"displayName":"Timestamp"}]},
+      "title":"Unresolved Violations (Pending Acknowledgement)","type":"table",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT v.frame_timestamp AS \"Timestamp\", v.violation_type AS \"Violation Type\", v.severity AS \"Severity\", COALESCE(vs.location,vs.name) AS \"Zone\", vs.name AS \"Video Source\", CAST(v.id AS text) AS \"ID\" FROM violations v JOIN video_sources vs ON vs.id=v.video_source_id WHERE v.acknowledged=false AND (CAST(NULLIF('${video_source}','All') AS integer) IS NULL OR v.video_source_id = CAST(NULLIF('${video_source}','All') AS integer)) ORDER BY v.frame_timestamp DESC LIMIT 100","refId":"A"}]
+    },
+
+    {"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":63},"id":35,"title":"Video Source Summary","type":"row"},
+
+    {
+      "datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},
+      "description":"Per-video breakdown with compliance gauge, violation counts, and processing stats",
+      "fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"custom":{"align":"auto","cellOptions":{"type":"auto"},"inspect":false},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]}},"overrides":[
+        {"matcher":{"id":"byName","options":"avg_compliance"},"properties":[{"id":"displayName","value":"Avg Compliance %"},{"id":"unit","value":"percent"},{"id":"min","value":0},{"id":"max","value":100},{"id":"custom.cellOptions","value":{"mode":"gradient","type":"gauge"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":50},{"color":"green","value":80}]}}]},
+        {"matcher":{"id":"byName","options":"total_violations"},"properties":[{"id":"displayName","value":"Violations"},{"id":"custom.cellOptions","value":{"type":"color-background"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":1},{"color":"red","value":10}]}}]},
+        {"matcher":{"id":"byName","options":"status"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-text"}},{"id":"mappings","value":[{"type":"value","options":{"done":{"color":"green","index":0,"text":"Done"}}},{"type":"value","options":{"processing":{"color":"blue","index":1,"text":"Processing"}}},{"type":"value","options":{"failed":{"color":"red","index":2,"text":"Failed"}}},{"type":"value","options":{"pending":{"color":"yellow","index":3,"text":"Pending"}}}]}]},
+        {"matcher":{"id":"byName","options":"avg_inference_ms"},"properties":[{"id":"displayName","value":"Avg Inference (ms)"},{"id":"unit","value":"ms"}]},
+        {"matcher":{"id":"byName","options":"total_persons"},"properties":[{"id":"displayName","value":"Total Persons"}]},
+        {"matcher":{"id":"byName","options":"frames_processed"},"properties":[{"id":"displayName","value":"Frames"}]},
+        {"matcher":{"id":"byName","options":"processed_at"},"properties":[{"id":"displayName","value":"Processed At"},{"id":"unit","value":"dateTimeAsLocal"}]}
+      ]},
+      "gridPos":{"h":10,"w":24,"x":0,"y":64},"id":36,
+      "options":{"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true,"sortBy":[{"desc":true,"displayName":"Violations"}]},
+      "title":"Video Source Summary","type":"table",
+      "targets":[{"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"format":"table","rawSql":"SELECT vs.name, COALESCE(vs.location,'—') AS location, vs.status, COUNT(DISTINCT ds.id) AS frames_processed, COALESCE(SUM(ds.person_count),0) AS total_persons, COALESCE(SUM(ds.violation_count),0) AS total_violations, COALESCE(ROUND(CAST(AVG(ds.compliance_rate) AS numeric),1),0) AS avg_compliance, COALESCE(ROUND(CAST(AVG(ds.inference_time_ms) AS numeric),1),0) AS avg_inference_ms, vs.processed_at FROM video_sources vs LEFT JOIN detection_sessions ds ON ds.video_source_id=vs.id GROUP BY vs.id,vs.name,vs.location,vs.status,vs.processed_at ORDER BY total_violations DESC NULLS LAST","refId":"A"}]
+    }
+
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["safety","ppe","compliance","yolo","monitoring"],
+  "templating": {
+    "list": [
+      {"current":{},"hide":0,"includeAll":false,"label":"Data Source","multi":false,"name":"DS_POSTGRESQL","options":[],"query":"postgres","refresh":1,"type":"datasource"},
+      {"current":{"selected":true,"text":"All","value":"All"},"datasource":{"type":"postgres","uid":"${DS_POSTGRESQL}"},"definition":"SELECT 'All' AS __text, 'All' AS __value UNION ALL SELECT COALESCE(location,name) AS __text, CAST(id AS text) AS __value FROM video_sources ORDER BY 1","hide":0,"includeAll":false,"label":"Video Source","multi":false,"name":"video_source","options":[],"query":"SELECT 'All' AS __text, 'All' AS __value UNION ALL SELECT COALESCE(location,name) AS __text, CAST(id AS text) AS __value FROM video_sources ORDER BY 1","refresh":2,"sort":0,"type":"query"}
+    ]
+  },
+  "time": {"from":"now-7d","to":"now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Safety Eye — PPE Compliance Monitor",
+  "uid": "safety-eye-ppe-v1",
+  "version": 3,
+  "weekStart": ""
+}
