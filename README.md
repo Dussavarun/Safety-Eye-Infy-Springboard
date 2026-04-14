@@ -52,6 +52,13 @@ No schema or dashboard hardcoding is required for new class labels.
 └── .env.example
 ```
 
+## Main DashBoard
+
+![Dashboard](https://raw.githubusercontent.com/Dussavarun/Safety-Eye-Infy-Springboard/main/frontend/images/b5ec828b-6ccd-4ed2-bcf2-ce6f576c2111.jpg)
+
+
+
+
 ## Backend API
 
 - `POST /videos/upload` -> upload video and start async processing
